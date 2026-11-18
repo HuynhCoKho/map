@@ -74,7 +74,12 @@ async function focusLocation(manual = false) {
     locateButton.setAttribute('aria-busy', 'true');
   }
 
+  let settled = false;
+  const timer = manual ? setTimeout(() => fail({code: 3}), 22000) : null;
+
   function finish() {
+    settled = true;
+    clearTimeout(timer);
     if (!manual) return;
     locateButton.disabled = false;
     locateButton.textContent = locateLabel;
@@ -82,17 +87,19 @@ async function focusLocation(manual = false) {
   }
 
   function fail(error) {
+    if (settled) return;
     finish();
     if (!manual) return;
     const message = {
       1: 'Trình duyệt chặn vị trí. Hãy kiểm tra quyền Vị trí của trang. Nếu mở từ Facebook, hãy mở bằng Chrome hoặc Safari.',
       2: 'Thiết bị chưa trả về vị trí. Hãy bật Dịch vụ vị trí trên thiết bị rồi thử lại.',
-      3: 'Định vị mất quá nhiều thời gian. Hãy thử lại hoặc tìm bằng địa chỉ.'
+      3: 'Chưa nhận được vị trí. Nếu trình duyệt đang hỏi quyền, hãy chọn Cho phép rồi thử lại.'
     }[error.code];
     toast(message || 'Chưa lấy được vị trí. Hãy thử tìm bằng địa chỉ.');
   }
 
   function showPosition({coords}) {
+    if (settled) return;
     finish();
     if (!map || (!manual && userMoved)) return;
     const {latitude, longitude, accuracy} = coords;
@@ -114,6 +121,7 @@ async function focusLocation(manual = false) {
   function requestPosition(highAccuracy) {
     try {
       navigator.geolocation.getCurrentPosition(showPosition, error => {
+        if (settled) return;
         if (manual && !highAccuracy && (error.code === 2 || error.code === 3)) {
           requestPosition(true);
           return;
