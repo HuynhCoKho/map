@@ -35,3 +35,5 @@ GitHub Pages → Deploy from a branch → main → / (root). Không cần build 
 Kiểm tra JS: `node --check app.js`. Kiểm thử: `node tests/public.test.cjs`.
 
 Nguồn bản đồ: MapLibre GL JS 5.6.1, OpenFreeMap/OpenMapTiles/OpenStreetMap. Nguồn địa giới và giấy phép xem assets/SOURCES.md và assets/SOURCE_LICENSE.txt. Ranh giới đã giản lược, chỉ dùng tham khảo. Internet cần cho nền bản đồ, tìm địa chỉ và nguồn điểm.
+
+Bố cục desktop chiếm chiều cao khả dụng của cửa sổ; cột thông tin cuộn riêng. ResizeObserver cập nhật canvas khi khung thay đổi sau tải dữ liệu, tìm địa chỉ hoặc thay kích thước. Tên tỉnh được đối chiếu không phân biệt biến thể dấu Hoà/Hòa, Hoá/Hóa.
