@@ -36,7 +36,101 @@ function showPoint(r){if(!map||!located(r))return;closePopup();const el=document
 function render(){const matches=matchingRecords(),rows=matches.filter(r=>selected.has(r.type));$('networks').innerHTML='';for(const t of TYPES){const label=document.createElement('label');label.className='network'+(selected.has(t)?'':' off');const input=document.createElement('input');input.type='checkbox';input.checked=selected.has(t);input.setAttribute('aria-label',t);input.onchange=()=>{if(input.checked)selected.add(t);else selected.delete(t);render();};const symbol=document.createElement('span');symbol.innerHTML=icon(t,'',22);const name=document.createElement('span');name.className='label';name.textContent=t;const count=document.createElement('b');count.textContent=matches.filter(r=>r.type===t).length;label.append(input,symbol,name,count);$('networks').append(label);}const points=rows.filter(located);$('coverage').textContent=points.length+' điểm có vị trí · '+(rows.length-points.length)+' điểm chưa có tọa độ';$('resultCount').textContent='Danh sách kết quả ('+rows.length+')';$('resultList').innerHTML='';rows.forEach(r=>{const b=document.createElement('button');b.className='result';const n=document.createElement('strong'),a=document.createElement('small');n.textContent=r.name;a.textContent=r.address+(located(r)?'':' · Chưa có tọa độ');b.append(n,a);b.onclick=()=>{if(!located(r)){toast('Điểm này chưa có tọa độ xác nhận.');return;}userMoved=true;map.flyTo({center:[r.lng,r.lat],zoom:15,pitch:40});showPoint(r);};$('resultList').append(b);});closePopup();if(!ready)return;const wanted=new Set(points.map(r=>r.id));for(const [id,entry]of markers)if(!wanted.has(id)){entry.marker.remove();markers.delete(id);}for(const r of points){let entry=markers.get(r.id);if(!entry){const el=document.createElement('button');el.type='button';el.className='marker';const marker=new maplibregl.Marker({element:el,anchor:'center'}).setLngLat([r.lng,r.lat]).addTo(map);entry={marker,el,record:r};el.onclick=e=>{e.stopPropagation();showPoint(entry.record);};markers.set(r.id,entry);}entry.record=r;entry.el.innerHTML=icon(r.type,r.status,30);entry.el.title=r.name+' · '+r.type+' · '+r.status;entry.el.dataset.pointId=r.id;entry.el.dataset.shape=r.status==='Chấm dứt'?'no-entry':TYPES.indexOf(r.type)===4?'bank':['circle','triangle','square','hexagon'][TYPES.indexOf(r.type)];entry.marker.setLngLat([r.lng,r.lat]);}map.getSource('points').setData({type:'FeatureCollection',features:points.map(r=>({type:'Feature',geometry:{type:'Point',coordinates:[r.lng,r.lat]},properties:{}}))});}
 function normalizePublic(data){if(!data||data.schema!==1||!Array.isArray(data.records))throw Error('Dữ liệu công khai không hợp lệ.');const seen=new Set();return data.records.slice(0,10000).filter(r=>{if(!r||typeof r.id!=='string'||seen.has(r.id)||!TYPES.includes(r.type)||!['Đang hoạt động','Tạm ngừng','Chấm dứt'].includes(r.status))return false;seen.add(r.id);return true;}).map(r=>{const o={};for(const key of ['id','name','type','province','ward','address','status','expires'])o[key]=String(r[key]??'').slice(0,700);const valid=r.lat!==null&&r.lng!==null&&Number.isFinite(Number(r.lat))&&Number.isFinite(Number(r.lng))&&+r.lat>=8&&+r.lat<=24&&+r.lng>=102&&+r.lng<=118;o.lat=valid?+r.lat:null;o.lng=valid?+r.lng:null;o.searchText=searchText([o.name,o.address,o.ward,o.province].join(' '));return o;});}
 function loadFeed(){if(feedLoading||Date.now()-lastFeed<5000)return;feedLoading=true;lastFeed=Date.now();$('refresh').disabled=true;$('dataStatus').textContent='Đang tải dữ liệu…';const script=document.createElement('script');let done=false;function finish(){if(done)return;done=true;clearTimeout(timer);script.remove();feedLoading=false;$('refresh').disabled=false;window.fxMapReceive=()=>{};}const timer=setTimeout(()=>{finish();$('dataStatus').textContent='Chưa kết nối được nguồn dữ liệu. Bấm Tải lại để thử.';},25000);window.fxMapReceive=data=>{try{records=normalizePublic(data);$('dataStatus').textContent='Đã cập nhật '+new Date(data.generatedAt).toLocaleString('vi-VN');render();}catch(e){$('dataStatus').textContent=e.message;}finish();};script.onerror=()=>{finish();$('dataStatus').textContent='Không tải được nguồn dữ liệu. Vui lòng thử lại.';};script.src=FEED+'?action=publicMap&callback=fxMapReceive&_='+Date.now();document.head.append(script);}
-async function focusLocation(manual=false){if(!map||!navigator.geolocation)return;if(!manual&&navigator.permissions){try{if((await navigator.permissions.query({name:'geolocation'})).state==='denied')return;}catch{}}navigator.geolocation.getCurrentPosition(pos=>{if(!map||(!manual&&userMoved))return;const {latitude:lat,longitude:lng,accuracy}=pos.coords;if(userMarker)userMarker.remove();const el=document.createElement('div');el.className='user-location';el.title='Vị trí của bạn · sai số khoảng '+Math.round(accuracy)+' m';userMarker=new maplibregl.Marker({element:el}).setLngLat([lng,lat]).addTo(map);map.flyTo({center:[lng,lat],zoom:13,pitch:35});},()=>{if(manual)toast('Không lấy được vị trí. Có thể tìm địa chỉ hoặc xem TP.HCM–Đồng Nai.');},{enableHighAccuracy:true,timeout:10000,maximumAge:60000});}
+const locateButton = $('locate');
+const locateLabel = locateButton.textContent;
+
+function visibleLocationOffset() {
+  const container = map.getContainer();
+  const toolbar = locateButton.parentElement;
+  const viewportHeight = document.documentElement.clientHeight;
+  let rect = container.getBoundingClientRect();
+  if (Math.min(rect.bottom, viewportHeight) - Math.max(rect.top, 0) < 180) {
+    container.scrollIntoView({block: 'start', behavior: 'instant'});
+    rect = container.getBoundingClientRect();
+  }
+  const top = Math.max(rect.top, toolbar.getBoundingClientRect().bottom, 0);
+  const bottom = Math.min(rect.bottom, viewportHeight);
+  return [0, bottom > top ? (top + bottom) / 2 - (rect.top + rect.height / 2) : 0];
+}
+
+async function focusLocation(manual = false) {
+  if (manual && locateButton.disabled) return;
+  if (!map || !navigator.geolocation) {
+    if (manual) toast(map ? 'Trình duyệt này không hỗ trợ định vị. Hãy thử tìm bằng địa chỉ.' : 'Bản đồ đang tải. Anh/chị thử lại sau vài giây.');
+    return;
+  }
+
+  if (!manual) {
+    try {
+      const permission = await navigator.permissions?.query({name: 'geolocation'});
+      if (permission?.state !== 'granted' || userMoved || locateButton.disabled) return;
+    } catch {
+      return;
+    }
+  } else {
+    userMoved = true;
+    locateButton.disabled = true;
+    locateButton.textContent = '⌖ Đang định vị…';
+    locateButton.setAttribute('aria-busy', 'true');
+  }
+
+  function finish() {
+    if (!manual) return;
+    locateButton.disabled = false;
+    locateButton.textContent = locateLabel;
+    locateButton.removeAttribute('aria-busy');
+  }
+
+  function fail(error) {
+    finish();
+    if (!manual) return;
+    const message = {
+      1: 'Trình duyệt chặn vị trí. Hãy kiểm tra quyền Vị trí của trang. Nếu mở từ Facebook, hãy mở bằng Chrome hoặc Safari.',
+      2: 'Thiết bị chưa trả về vị trí. Hãy bật Dịch vụ vị trí trên thiết bị rồi thử lại.',
+      3: 'Định vị mất quá nhiều thời gian. Hãy thử lại hoặc tìm bằng địa chỉ.'
+    }[error.code];
+    toast(message || 'Chưa lấy được vị trí. Hãy thử tìm bằng địa chỉ.');
+  }
+
+  function showPosition({coords}) {
+    finish();
+    if (!map || (!manual && userMoved)) return;
+    const {latitude, longitude, accuracy} = coords;
+    const position = [longitude, latitude];
+    if (userMarker) userMarker.remove();
+    const element = document.createElement('div');
+    element.className = 'user-location';
+    element.title = 'Vị trí của bạn · sai số khoảng ' + Math.round(accuracy) + ' m';
+    userMarker = new maplibregl.Marker({element}).setLngLat(position).addTo(map);
+    map.flyTo({
+      center: position,
+      offset: manual ? visibleLocationOffset() : [0, 0],
+      zoom: accuracy > 1000 ? 11 : 13,
+      pitch: 25
+    });
+    if (manual) toast(element.title);
+  }
+
+  function requestPosition(highAccuracy) {
+    try {
+      navigator.geolocation.getCurrentPosition(showPosition, error => {
+        if (manual && !highAccuracy && (error.code === 2 || error.code === 3)) {
+          requestPosition(true);
+          return;
+        }
+        fail(error);
+      }, {
+        enableHighAccuracy: highAccuracy,
+        timeout: highAccuracy ? 12000 : 7000,
+        maximumAge: highAccuracy ? 0 : 60000
+      });
+    } catch (error) {
+      fail(error);
+    }
+  }
+
+  requestPosition(false);
+}
 // Điểm đặt nhãn tham chiếu, tọa độ theo thứ tự [kinh độ, vĩ độ].
 const MAP_LABELS = [
   {name: 'Quần đảo Hoàng Sa', position: [112.0, 16.55]},
@@ -83,6 +177,7 @@ const fullscreenBackground = document.querySelectorAll('.filters, .address, .map
 let mapScrollTop = 0;
 
 function fullscreenChanged() {
+  (document.fullscreenElement === box ? box : document.body).append($('toast'));
   const active = document.fullscreenElement === box || box.classList.contains('map-fullscreen');
   fullscreenButton.textContent = active ? '⛶ Thoát toàn màn hình' : '⛶ Toàn màn hình';
   fullscreenButton.setAttribute('aria-pressed', String(active));
