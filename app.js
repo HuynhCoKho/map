@@ -1,6 +1,6 @@
 'use strict';
 const $=id=>document.getElementById(id);
-const TYPES=['Đại lý chi trả ngoại tệ','Đơn vị trực tiếp chi trả ngoại tệ','Đại lý đổi ngoại tệ','Đại lý đổi tiền biên giới','Ngân hàng thương mại'];
+const TYPES=['Đại lý chi trả ngoại tệ','Đơn vị trực tiếp chi trả ngoại tệ','Đại lý đổi ngoại tệ','Đại lý đổi tiền biên giới','Ngân hàng'];
 const COLORS=['#197cb2','#855bc3','#078a69','#e79a34','#264e86'];
 const FEED='https://script.google.com/macros/s/AKfycbz3J8MDCs1sCrkKe3buWd-X_luX82Q5n77ffBBG8rRvBnibIpUSvFeaKNZcI6LnVEtg/exec';
 let selected=new Set(TYPES),records=[],map,ready=false,showWards=true,showHeat=false,popup,userMarker,addressMarker,addressResults=[],userMoved=false,toastTimer,feedLoading=false,lastFeed=0;
